@@ -43,7 +43,6 @@ xvargs_init:
 	leaq	._xvargs_callers_rbp(%rip), %rax
 	movq	%rdi, (%rax)
 #ifdef XVARG_SAFE
-	je		._xvargs_fatal_busy_address // TODO
 	leaq	._xvargs_safe_limit(%rip), %rax
 	movq	%rsi, (%rax)
 	leaq	._xvargs_safe_default(%rip), %rax
@@ -53,13 +52,36 @@ xvargs_init:
 	ret
 
 xvargs_next:
+	pushq	%rbp
+	movq	%rsp, %rbp
+#ifdef XVARG_SAFE
+	movq	._xvargs_safe_limit(%rip), %rax
+	movq	._xvargs_stack_offset(%rip), %rbx
+	cmpq	%rbx, %rax
+	jae		._xvargs_next_return_default
+#endif
+	movq	._xvargs_callers_rbp(%rip), %rbx
+	movq	._xvargs_stack_offset(%rip), %rax
+	#       | rbp				 0(offset from rbp)
+	#       | return address	 8(offset from rbp)
+	# stack | arg1				16(offset from rbp) ._xvargs_stack_offset = 0                  67 XXX
+	#       | arg2                       .          ._xvargs_stack_offset = 1                  69
+	#       | arg3                       .          ._xvargs_stack_offset = 2
+	#       v                            .
+	shlq	$3, %rax
+	movq	16(%rbx, %rax, 1), %rax
+	incq	._xvargs_stack_offset(%rip)
+	leave
+	ret
+#ifdef XVARG_SAFE
+._xvargs_next_return_default:	
+	movq	._xvargs_safe_default(%rip), %rax
+	leave
+	ret
+#endif
 
 xvargs_fini:
-
-
-#       | rbp
-#       | return address
-# stack | arg1
-#       | arg2
-#       | arg3
-#       v
+	pushq	%rbp
+	movq	%rsp, %rbp
+	leave
+	ret
