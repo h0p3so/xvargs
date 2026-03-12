@@ -1,21 +1,24 @@
 
 	xvargs: approach to stdarg library from libc for x86_64
 API
-	* XVARG_SAFE: this macro is used in case the api-user wants a safe way to use xvargs. It makes xvargs to check
-	a provided limit (via xvargs_init) and if such limit is exceeded, a default value (also provided via xvargs_init)
+	* XVARG_SAFE: this macro is used in case the api-user wants a safe way to
+	use xvargs. It makes xvargs to check a provided limit (via xvargs_init) and
+	if such limit is exceeded, a default value (also provided via xvargs_init)
 	is returned instead
 
-	* xvargs_init: this function sets up the library, the main argument is the value of the `rbp` register of the
-	caller's function (movq %rbp, %rdi), so xvargs_next knows from where to start reading. If XVARG_SAFE is present,
+	* xvargs_init: this function sets up the library, the main argument is the
+	value of the `rbp` register of the caller's function (movq %rbp, %rdi), so
+	xvargs_next knows from where to start reading. If XVARG_SAFE is present,
 	then the function takes two more arguments
-	rsi: a limit for the number of arguments expected
-	rdx: a default value in case rsi's value is exceeded
+	- rsi: a limit for the number of arguments expected
+	- rdx: a default value in case rsi's value is exceeded
 
-	* xvargs_next: gives the next argument found. If XVARG_SAFE is present and the limit provided is exceeded, the function
-	returns the default value
+	* xvargs_next: gives the next argument found. If XVARG_SAFE is present and
+	the limit provided is exceeded, the function returns the default value
 
-	* xvargs_fini: cleans the library information to make it ready for other functions. This library cannot be called more
-	than once at the same time since there's only one set of variables to handle the metada
+	* xvargs_fini: cleans the library information to make it ready for other functions.
+	This library cannot be called more than once at the same time since there's only
+	one set of variables to handle the metada
 USAGE
 	[       ]  | rbp				 0(offset from rbp)
 	[       ]  | return address      8(offset from rbp)
@@ -24,8 +27,9 @@ USAGE
 	[       ]  | arg3                       .           ._xvargs_stack_offset = 2
 	[       ]  v                            .
 
-	Since the arguments are pushed into the stack, the arguments need to be pushed in the reversed order
-	they're intended to be used. For example in C you would do something like
+	Since the arguments are pushed into the stack, the arguments need to be pushed in
+	the reversed order they're intended to be used. For example in C you would do
+	something like
 
 	function(1, 2, 3) using the library, you would need to make function(3, 2, 1)
 
