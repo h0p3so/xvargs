@@ -8,7 +8,7 @@ API
 	is returned instead
 
 	* xvargs_init: this function sets up the library, the main argument is the
-	value of the `rbp` register of the caller's function (movq %rbp, %rdi), so
+	value of the `rsp` register of the caller's function (movq %rsp, %rdi), so
 	xvargs_next knows from where to start reading. If XVARG_SAFE is present,
 	then the function takes two more arguments
 	- rsi: a limit for the number of arguments expected
@@ -21,12 +21,37 @@ API
 	This library cannot be called more than once at the same time since there's only
 	one set of variables to handle the metada
 
+SET UP
+	pushq	%rbp
+	movq	%rsp, %rbp
+	movq	%rsp, %rdx (*)
+	subq	$32, %rsp
+	# stack variables --------------
+	#  -4(%rbp): fd
+	# -12(%rbp): fmt string (ptr)
+	# -20(%rbp): bytes written into buffer so far
+	#
+	#
+	#
+	movl	%edi, -4(%rbp)
+	movq	%rsi, -12(%rbp)
+	#
+	# xvargs initialization
+	#
+	movq	%rdx, %rdi ($)
+	call	xvargs_init
+
+	This a fragment of `tiny_pf` library which depends of xvargs, here we can see how in
+	(*) we save the value of rsp to later pass it as argument to xvargs_init ($). The xvargs
+	set up needs to be done before setting up the own caller's stack frame, or, like in this
+	case, save rsp's value and then pass it as argument
+
 USAGE
-	[       ]  | rbp				 0(offset from rbp)
-	[       ]  | return address      8(offset from rbp)
-	[ stack ]  | arg1				16(offset from rbp) ._xvargs_stack_offset = 0
-	[       ]  | arg2                       .           ._xvargs_stack_offset = 1
-	[       ]  | arg3                       .           ._xvargs_stack_offset = 2
+	[       ]  | rbp                        0(offset from rbp)
+	[       ]  | return address             8(offset from rbp)
+	[ stack ]  | arg1                       16(offset from rbp) ._xvargs_stack_offset = 0
+	[       ]  | arg2                       .                   ._xvargs_stack_offset = 1
+	[       ]  | arg3                       .                   ._xvargs_stack_offset = 2
 	[       ]  v                            .
 
 	Since the arguments are pushed into the stack, the arguments need to be pushed in
