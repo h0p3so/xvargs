@@ -1,73 +1,129 @@
 
-	xvargs: approach to stdarg library from libc for x86_64
+	xvargs: variadic argument library for x86_64 programs
 
 API
-	* XVARG_SAFE: this macro is used in case the api-user wants a safe way to
-	use xvargs. It makes xvargs to check a provided limit (via xvargs_init) and
-	if such limit is exceeded, a default value (also provided via xvargs_init)
-	is returned instead
+	* XVARG_SAFE: this macro, when defined at assembly time, enables
+	bounds-checked access. xvargs_init then accepts two extra arguments
+	(limit and default). When the internal offset reaches the limit,
+	xvargs_next returns the default instead of reading past the stack.
 
-	* xvargs_init: this function sets up the library, the main argument is the
-	value of the `rsp` register of the caller's function (movq %rsp, %rdi), so
-	xvargs_next knows from where to start reading. If XVARG_SAFE is present,
-	then the function takes two more arguments
-	- rsi: a limit for the number of arguments expected
-	- rdx: a default value in case rsi's value is exceeded
+	* xvargs_init: initialises the library with the caller's frame base.
+	- rdi: caller's %rbp value (after `pushq %rbp; movq %rsp, %rbp`),
+	      or %rsp saved before setting up the caller's own stack frame
+	- rsi: (only with XVARG_SAFE) maximum number of arguments to read
+	- rdx: (only with XVARG_SAFE) value returned once the limit is exceeded
 
-	* xvargs_next: gives the next argument found. If XVARG_SAFE is present and
-	the limit provided is exceeded, the function returns the default value
+	* xvargs_next: returns the next variadic argument in %rax. Reads from
+	16(%rbx) for the first call, 24(%rbx) for the second, etc., where
+	%rbx is the base stored by xvargs_init.
 
-	* xvargs_fini: cleans the library information to make it ready for other functions.
-	This library cannot be called more than once at the same time since there's only
-	one set of variables to handle the metada
+	* xvargs_fini: resets all internal state (saved rbp, offset counter,
+	and safe-mode fields) to zero, making the library available for
+	re-initialisation.
 
 SET UP
-	pushq	%rbp
-	movq	%rsp, %rbp
-	movq	%rsp, %rdx (*)
-	subq	$32, %rsp
-	# stack variables --------------
-	#  -4(%rbp): fd
-	# -12(%rbp): fmt string (ptr)
-	# -20(%rbp): bytes written into buffer so far
-	#
-	#
-	#
-	movl	%edi, -4(%rbp)
-	movq	%rsi, -12(%rbp)
-	#
-	# xvargs initialization
-	#
-	movq	%rdx, %rdi ($)
-	call	xvargs_init
+	Arguments must be pushed onto the stack in reverse order (rightmost
+	argument first), matching the System V AMD64 ABI. The caller's base
+	pointer must be saved and passed to xvargs_init before the first
+	xvargs_next call.
 
-	This a fragment of `tiny_pf` library which depends of xvargs, here we can see how in
-	(*) we save the value of rsp to later pass it as argument to xvargs_init ($). The xvargs
-	set up needs to be done before setting up the own caller's stack frame, or, like in this
-	case, save rsp's value and then pass it as argument
+	                          # stack (low-to-high):
+	pushq    $'C'             # | 'C' | <- rightmost (pushed first)
+	pushq    $'B'             # | 'B' |
+	pushq    $'A'             # | 'A' | <- leftmost  (pushed last)
+	pushq    %rbp
+	movq     %rsp, %rbp
+	movq     %rbp, %rdi       # pass frame pointer
+	call     xvargs_init
+	call     xvargs_next      # %rax = 'A'
+	call     xvargs_next      # %rax = 'B'
+	call     xvargs_next      # %rax = 'C'
+	call     xvargs_fini
+	leave
+	addq     $24, %rsp        # restore stack: 3 args x 8 bytes
+
+	Failure to clean up the stack will leave %rsp misaligned and may crash
+	the program on subsequent calls or on exit.
+
+	For a complete example
+
+	.section .text
+	.globl _start
+	_start:
+		pushq   $254
+		pushq   $134
+		call    .tester
+		addq    $16, %rsp
+		movq    %rax, %rdi
+		movq    $60, %rax
+		syscall
+
+	.tester:
+		pushq   %rbp
+		movq    %rsp, %rbp
+		movq    %rbp, %rdi
+		movq    $2, %rsi        # safe limit
+		movq    $96, %rdx       # safe default
+		call    xvargs_init
+		call    xvargs_next
+		call    xvargs_next
+		call    xvargs_next     # past limit -> returns 96
+		call    xvargs_fini
+		leave
+		ret
 
 USAGE
-	[       ]  | rbp                        0(offset from rbp)
-	[       ]  | return address             8(offset from rbp)
-	[ stack ]  | arg1                       16(offset from rbp) ._xvargs_stack_offset = 0
-	[       ]  | arg2                       .                   ._xvargs_stack_offset = 1
-	[       ]  | arg3                       .                   ._xvargs_stack_offset = 2
-	[       ]  v                            .
+	After xvargs_init, each call to xvargs_next reads the next 8-byte
+	value from the stack. The stack layout relative to the stored base
+	pointer (%rbx) is:
 
-	Since the arguments are pushed into the stack, the arguments need to be pushed in
-	the reversed order they're intended to be used. For example in C you would do
-	something like
+	  Offset   Contents              xvargs_next
+	    0      saved %rbp            (not read)
+	    8      return address        (not read)
+	   16      arg0 (last pushed)    call 1 -> arg0
+	   24      arg1                  call 2 -> arg1
+	   32      arg2                  call 3 -> arg2
+	   ...     ...
 
-	function(1, 2, 3) using the library, you would need to make function(3, 2, 1)
+	Because the System V ABI pushes arguments right-to-left, the last
+	value pushed corresponds to the leftmost (first) parameter in the
+	C calling convention.
 
 ERRORS
-	* 'xvargs: cannot invoke two instances of xvargs at the same time' will be printed and
-	program will end if the function is called while it is busy. The function can only work
-	with one caller at the time
+	xvargs has two fatal error conditions. In both cases the message is
+	written to stderr (fd 2) and the process exits with code 1.
 
-	* 'xvargs: safe-limit is not an invalid limit (limit < 1)' will be printed and the program
-	will end if XVARG_SAFE is present and rsi (limit) is a non-positive number or zero
+	  * "xvargs: cannot invoke two instances of xvargs at the same time"
+	    Raised when xvargs_init is called while the library is already
+	    initialised and xvargs_fini has not been called.
+
+	  * "xvargs: safe-limit is not an invalid limit (limit < 1)"
+	    Raised when XVARG_SAFE is defined and xvargs_init is called
+	    with %rsi (the limit) set to zero or a negative value.
 
 NOTES
-	* if fomit-frame-pointer is used to compile your project, it is most likely xvargs won't work since it
-	will have no reference to rbp
+	* Frame pointer requirement: xvargs depends on a valid %rbp frame
+	  pointer to locate arguments on the stack. If compiled with
+	  -fomit-frame-pointer, the caller must manually save %rsp before
+	  setting up its own stack frame and pass that saved value instead.
+
+	* Not re-entrant: xvargs uses a single set of static variables in
+	  .bss. Only one caller may use the library at a time. Call
+	  xvargs_fini before re-initialising for a subsequent call.
+
+	* Stack cleanup: The caller is responsible for restoring %rsp after
+	  the variadic call by adding 8 bytes per pushed argument, or by
+	  popping into scratch registers.
+
+	* Argument order: Arguments must be pushed in reverse order (
+	  rightmost first). xvargs_next reads them left-to-right, matching
+	  the natural C parameter order.
+
+	* xvargs_fini: Always call xvargs_fini when done. It zeros all
+	  internal state, allowing the library to be safely re-initialised.
+
+	* Dependencies: tiny_pf (https://github.com/h0p3so/tiny-pf) uses
+	  xvargs for its variadic argument handling.
+
+	* Platform: x86_64 Linux only - uses write (syscall 1) and exit
+	  (syscall 60) directly for error reporting.
