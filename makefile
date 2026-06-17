@@ -1,11 +1,14 @@
-objs = xvargs.o test.o
+oxvargs = xvargs.o
+otest = test.o
 final = xvargs
 
 all: $(final)
 
-$(final): $(objs)
-	ld	-o $(final) $(objs)
-%.o: %.s
-	as	-o $@ $<
+$(final): $(oxvargs) $(otest)
+	ld	$(oxvargs) $(otest)	-o $(final)
+$(oxvargs):
+	gcc -c xvargs.S -o $(oxvargs) -DXVARG_SAFE
+$(otest):
+	gcc -c test.S -o $(otest)
 clean:
-	rm	-f $(objs) $(final)
+	rm	-f $(oxvargs) $(otest) $(final)
