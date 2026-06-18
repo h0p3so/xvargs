@@ -30,10 +30,6 @@
 .globl xvargs_next
 .globl xvargs_fini
 
-# arguments
-# rdi: address of `rbp`		               u64
-# rsi: sugguest limit		               u64 only if XVARG_SAFE is present
-# rdx: default value if limit is exceeded  any only if XVARG_SAFE is present
 xvargs_init:	
 	pushq	%rbp
 	movq	%rsp, %rbp
@@ -56,16 +52,16 @@ xvargs_next:
 	movq	%rsp, %rbp
 #ifdef XVARG_SAFE
 	movq	._xvargs_safe_limit(%rip), %rax
-	movq	._xvargs_stack_offset(%rip), %rbx
-	cmpq	%rbx, %rax
+	movq	._xvargs_stack_offset(%rip), %rcx
+	cmpq	%rax, %rcx
 	jae		._xvargs_next_return_default
 #endif
 	movq	._xvargs_callers_rbp(%rip), %rbx
 	movq	._xvargs_stack_offset(%rip), %rax
 	#       | rbp				 0(offset from rbp)
 	#       | return address	 8(offset from rbp)
-	# stack | arg1				16(offset from rbp) ._xvargs_stack_offset = 0                  67 XXX
-	#       | arg2                       .          ._xvargs_stack_offset = 1                  69
+	# stack | arg1				16(offset from rbp) ._xvargs_stack_offset = 0
+	#       | arg2                       .          ._xvargs_stack_offset = 1
 	#       | arg3                       .          ._xvargs_stack_offset = 2
 	#       v                            .
 	shlq	$3, %rax
@@ -83,5 +79,11 @@ xvargs_next:
 xvargs_fini:
 	pushq	%rbp
 	movq	%rsp, %rbp
+	movq	$0, ._xvargs_callers_rbp(%rip)
+	movq	$0, ._xvargs_stack_offset(%rip)
+#ifdef XVARG_SAFE
+	movq	$0, ._xvargs_safe_limit(%rip)
+	movq	$0, ._xvargs_safe_default(%rip)
+#endif
 	leave
 	ret
