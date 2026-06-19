@@ -32,4 +32,14 @@ USAGE
 	something like
 
 	function(1, 2, 3) using the library, you would need to make function(3, 2, 1)
+ERRORS
+	* 'xvargs: cannot invoke two instances of xvargs at the same time' will be printed and
+	program will end if the function is called while it is busy. The function can only work
+	with one caller at the time
 
+	* 'xvargs: safe-limit is not an invalid limit (limit < 1)' will be printed and the program
+	will end if XVARG_SAFE is present and rsi (limit) is a non-positive number or zero
+
+NOTES
+	* if fomit-frame-pointer is used to compile your project, it is most likely xvargs won't work since it
+	will have no reference to rbp

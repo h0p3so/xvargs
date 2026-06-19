@@ -2,6 +2,9 @@
 	._xvargs_fatal_busy_address_msg: .string "xvargs: cannot invoke two instances of xvargs at the same time\n"
 	._xvargs_fatal_busy_address_len: .quad   63
 
+	._xvargs_fatal_unexpected_limit_msg: .string "xvargs: safe-limit is not an invalid limit (limit < 1)\n"
+	._xvargs_fatal_unexpected_limit_len: .quad   55
+
 .section .bss
 	._xvargs_callers_rbp:  .zero 8
 	._xvargs_stack_offset: .zero 8
@@ -25,6 +28,8 @@
 
 ._xvargs_fatal_busy_address:
 	_xvargs_fatal ._xvargs_fatal_busy_address_msg(%rip), ._xvargs_fatal_busy_address_len(%rip)
+._xvargs_fatal_unexpected_limit:
+	_xvargs_fatal ._xvargs_fatal_unexpected_limit_msg(%rip), ._xvargs_fatal_unexpected_limit_len(%rip)
 
 .globl xvargs_init
 .globl xvargs_next
@@ -39,6 +44,8 @@ xvargs_init:
 	leaq	._xvargs_callers_rbp(%rip), %rax
 	movq	%rdi, (%rax)
 #ifdef XVARG_SAFE
+	cmpq	$0, %rsi
+	jle		._xvargs_fatal_unexpected_limit
 	leaq	._xvargs_safe_limit(%rip), %rax
 	movq	%rsi, (%rax)
 	leaq	._xvargs_safe_default(%rip), %rax
