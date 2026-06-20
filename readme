@@ -1,5 +1,6 @@
 
 	xvargs: approach to stdarg library from libc for x86_64
+
 API
 	* XVARG_SAFE: this macro is used in case the api-user wants a safe way to
 	use xvargs. It makes xvargs to check a provided limit (via xvargs_init) and
@@ -19,6 +20,7 @@ API
 	* xvargs_fini: cleans the library information to make it ready for other functions.
 	This library cannot be called more than once at the same time since there's only
 	one set of variables to handle the metada
+
 USAGE
 	[       ]  | rbp				 0(offset from rbp)
 	[       ]  | return address      8(offset from rbp)
@@ -32,6 +34,7 @@ USAGE
 	something like
 
 	function(1, 2, 3) using the library, you would need to make function(3, 2, 1)
+
 ERRORS
 	* 'xvargs: cannot invoke two instances of xvargs at the same time' will be printed and
 	program will end if the function is called while it is busy. The function can only work
