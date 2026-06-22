@@ -107,10 +107,6 @@ NOTES
 	  -fomit-frame-pointer, the caller must manually save %rsp before
 	  setting up its own stack frame and pass that saved value instead.
 
-	* Not re-entrant: xvargs uses a single set of static variables in
-	  .bss. Only one caller may use the library at a time. Call
-	  xvargs_fini before re-initialising for a subsequent call.
-
 	* Stack cleanup: The caller is responsible for restoring %rsp after
 	  the variadic call by adding 8 bytes per pushed argument, or by
 	  popping into scratch registers.
@@ -121,9 +117,6 @@ NOTES
 
 	* xvargs_fini: Always call xvargs_fini when done. It zeros all
 	  internal state, allowing the library to be safely re-initialised.
-
-	* Dependencies: tiny_pf (https://github.com/h0p3so/tiny-pf) uses
-	  xvargs for its variadic argument handling.
 
 	* Platform: x86_64 Linux only - uses write (syscall 1) and exit
 	  (syscall 60) directly for error reporting.
