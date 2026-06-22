@@ -1,3 +1,24 @@
+# xvargs provides va_list-like functionality at the assembly level for
+# x86-64 Linux under the System V AMD64 ABI. The first six integer/pointer
+# arguments are passed in registers (rdi, rsi, rdx, rcx, r8, r9); any
+# additional arguments are pushed onto the stack in right-to-left order.
+# 
+# This library reads those stack-resident arguments by walking through
+# the caller's stack frame. The caller initialises xvargs with its frame
+# base (usually %rbp after pushq %rbp; movq %rsp, %rbp), then calls
+# xvargs_next to pull each argument in left-to-right order. xvargs_fini
+# resets the internal state for re-use.
+# 
+# Compile with -DXVARG_SAFE to enable bounds checking: xvargs_init then
+# accepts a limit and default value; xvargs_next returns the default once
+# the limit is reached instead of reading past the last argument.
+# 
+# Dependencies: none. Linux syscalls (write, exit) are used inline for
+# fatal error reporting. This library does not link against libc.
+# 
+# See the accompanying readme for usage, setup examples, and known
+# limitations (not re-entrant, requires frame pointer, etc.).
+
 .section .rodata
 	._xvargs_fatal_busy_address_msg: .string "xvargs: cannot invoke two instances of xvargs at the same time\n"
 	._xvargs_fatal_busy_address_len: .quad   63
