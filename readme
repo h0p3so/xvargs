@@ -120,3 +120,6 @@ NOTES
 
 	* Platform: x86_64 Linux only - uses write (syscall 1) and exit
 	  (syscall 60) directly for error reporting.
+
+AUTHOR
+	Juan Diego PM (h0p3so)
