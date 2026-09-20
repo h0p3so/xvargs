@@ -2,6 +2,8 @@ oxvargs = xvargs.o
 otest = test.o
 final = xvargs
 
+.PHONY: all
+
 all: $(final)
 
 $(final): $(oxvargs) $(otest)

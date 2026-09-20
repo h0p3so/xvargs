@@ -11,11 +11,11 @@
 	call	xvargs_init
 	call	xvargs_next
 	call	xvargs_next
-	call	xvargs_next
+	call	xvargs_fini
 	leave
 	ret
 _start:
-	pushq	$254
+	pushq	$2
 	pushq	$134
 	call	.tester
 	movq	%rax, %rdi
